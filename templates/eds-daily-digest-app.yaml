@@ -1,0 +1,264 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Eds Daily Digest App
+
+Parameters:
+  Stage:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - qa
+      - prod
+
+  Stack:
+    Type: String
+    Default: eds-daily-digest
+
+  subFunds: 
+    Type: String
+    Default: "'EDS5','EDS37','EDS39','EDS41','EDS42'"
+
+  PrivateSubnets:
+    Description: VPC Private PrivateSubnets
+    Type: List<AWS::EC2::Subnet::Id>
+
+  VPCID:
+    Description: Master VPC ID
+    Type: AWS::EC2::VPC::Id
+
+
+Resources:
+  # Lambda function
+  ExecutorLambdaExectutionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: 
+                - lambda.amazonaws.com
+            Action: 
+              - sts:AssumeRole
+      Policies:
+      - PolicyName: !Sub '${Stage}-cf-${Stack}-executor-lambda-policy'
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - 'logs:CreateLogGroup'
+            - 'logs:CreateLogStream'
+            - 'logs:DescribeLogGroups'
+            - 'logs:DescribeLogStreams'
+            - 'logs:PutLogEvents'
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - ec2:CreateNetworkInterface
+            - ec2:DescribeNetworkInterfaces
+            - ec2:DeleteNetworkInterface
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - 'secretsmanager:GetSecretValue'
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - 'ssm:GetParameters'
+            - 'ssm:DescribeParameters'
+            - 'ssm:GetParametersByPath'
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - 'ses:SendRawEmail'
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - 's3:*'
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - lambda:InvokeFunction
+            Resource: '*'
+      Path: "/"
+      RoleName: !Sub '${Stage}-cf-${Stack}-executor-lambda-role'
+
+
+  TriggerLambdaExectutionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: 
+                - lambda.amazonaws.com
+            Action: 
+              - sts:AssumeRole
+      Policies:
+      - PolicyName: !Sub '${Stage}-cf-${Stack}-trigger-lambda-policy'
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+              - 'logs:CreateLogGroup'
+              - 'logs:CreateLogStream'
+              - 'logs:DescribeLogGroups'
+              - 'logs:DescribeLogStreams'
+              - 'logs:PutLogEvents'
+              Resource: '*'
+            - Effect: Allow
+              Action:
+              - ec2:CreateNetworkInterface
+              - ec2:DescribeNetworkInterfaces
+              - ec2:DeleteNetworkInterface
+              Resource: '*'
+            - Effect: Allow
+              Action:
+              - 'secretsmanager:GetSecretValue'
+              Resource: '*'
+            - Effect: Allow
+              Action:
+              - 'ssm:GetParameters'
+              - 'ssm:DescribeParameters'
+              - 'ssm:GetParametersByPath'
+              Resource: '*'
+            - Effect: Allow
+              Action:
+              -  states:StartExecution
+              Resource: 
+                - !Ref DailyDigestStepFunction
+      Path: /
+      RoleName: !Sub '${Stage}-cf-${Stack}-trigger-lambda-role'
+    DependsOn: DailyDigestStepFunction
+
+
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties: 
+      GroupDescription: !Sub CF Security Group for ${Stage} EDS Daily Digest
+      GroupName: !Sub ${Stage}-cf-${Stack}
+      VpcId: !Ref VPCID
+
+
+  ExecutorLambda:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: !Sub '${Stage}-cf-${Stack}-executor'
+      MemorySize: 512
+      Timeout: 900
+      Runtime: nodejs10.x
+      Role: 
+        Fn::GetAtt:
+        - ExecutorLambdaExectutionRole
+        - Arn
+      Handler: executor.handler
+
+      Environment:
+        Variables:
+          stage: !Ref Stage
+          stack: !Ref Stack
+          AWS_DB_SECRET_MANAGER_KEY: !Sub ${Stage}/mssql/quant
+
+      Code:
+        ZipFile: >
+          'use strict';
+          exports.handler = function(event, context, callback) {
+            callback(null, event);
+          };
+      VpcConfig:
+        SecurityGroupIds: 
+          - !Ref AppSecurityGroup
+        SubnetIds: !Ref PrivateSubnets
+
+
+  TriggerLambda:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: !Sub '${Stage}-cf-${Stack}-trigger'
+      MemorySize: 512
+      Timeout: 900
+      Runtime: nodejs10.x
+      Role:
+        Fn::GetAtt:
+        - TriggerLambdaExectutionRole
+        - Arn
+      Handler: trigger.handler
+      Environment:
+        Variables:
+          stage: !Ref Stage
+          stack: !Ref Stack
+          stepFunction: !Ref DailyDigestStepFunction
+          subFunds: !Ref subFunds 
+          AWS_DB_SECRET_MANAGER_KEY: !Sub ${Stage}/mssql/quant
+          
+      Code:
+        ZipFile: >
+          'use strict';
+          exports.handler = function(event, context, callback) {
+            callback(null, event);
+          };
+      VpcConfig:
+        SecurityGroupIds: 
+          - !Ref AppSecurityGroup
+        SubnetIds: !Ref PrivateSubnets
+
+  DailyDigestStepFunction:
+    Type: "AWS::StepFunctions::StateMachine"
+    Properties:
+      StateMachineName: !Sub '${Stage}-cf-${Stack}-machine'
+      DefinitionString:
+        !Sub
+          - |-
+            {
+              "Comment": "Step funcion for Eds Daily Digest",
+              "StartAt": "Executor Lambda",
+              "Version": "1.0",
+              "States":
+                {
+                    "Executor Lambda": {
+                      "Type": "Task",
+                      "Resource": "${ExecutorLambdaArn}",
+                      "Retry": [ {
+                        "ErrorEquals": [ "States.ALL" ],
+                        "MaxAttempts": 2
+                      } ],
+                      "End": true
+                    }
+                }
+            }
+          - {
+              ExecutorLambdaArn: !GetAtt ExecutorLambda.Arn
+            }
+      RoleArn: !GetAtt StateMachineRole.Arn
+
+  StateMachineRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - !Sub states.${AWS::Region}.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: !Sub '${Stage}-cf-${Stack}-statemachine-policy'
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource: 
+                  - !GetAtt ExecutorLambda.Arn
+
+Outputs:
+  ExecutorLambda:
+    Value: !Ref ExecutorLambda
+  TriggerLambda:
+    Value: !Ref TriggerLambda

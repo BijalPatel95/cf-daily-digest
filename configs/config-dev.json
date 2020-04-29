@@ -1,0 +1,10 @@
+[
+  {
+    "ParameterKey": "Stack",
+    "ParameterValue": "eds-daily-digest"
+  },
+  {
+    "ParameterKey": "Stage",
+    "ParameterValue": "dev"
+  }
+]

@@ -1,0 +1,18 @@
+[
+  {
+    "ParameterKey": "Stack",
+    "ParameterValue": "eds-daily-digest"
+  },
+  {
+    "ParameterKey": "Stage",
+    "ParameterValue": "prod"
+  },
+  {
+    "ParameterKey": "BucketName",
+    "ParameterValue": "eds-cf-templates-prod"
+  },
+  {
+    "ParameterKey": "RepoBranch",
+    "ParameterValue": "production"
+  }
+]
