@@ -18,6 +18,10 @@ Parameters:
     Type: String
     Default: "'EDS5','EDS37','EDS39','EDS41','EDS42'"
 
+  endPoint:
+    Type: String
+    Default: 'https://portal.equitydatascience.com/poe/form?ticker='
+
   PrivateSubnets:
     Description: VPC Private PrivateSubnets
     Type: List<AWS::EC2::Subnet::Id>
@@ -161,6 +165,7 @@ Resources:
           stage: !Ref Stage
           stack: !Ref Stack
           AWS_DB_SECRET_MANAGER_KEY: !Sub ${Stage}/mssql/quant
+          endPoint: !Ref endPoint
 
       Code:
         ZipFile: >
