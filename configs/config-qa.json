@@ -1,7 +1,7 @@
 [
   {
     "ParameterKey": "Stack",
-    "ParameterValue": "eds-daiy-digest"
+    "ParameterValue": "eds-daily-digest"
   },
   {
     "ParameterKey": "Stage",
@@ -10,5 +10,9 @@
   {
     "ParameterKey": "BucketName",
     "ParameterValue": "eds-cf-templates-qa"
+  },
+  {
+    "ParameterKey": "RepoBranch",
+    "ParameterValue": "dev"
   }
 ]
