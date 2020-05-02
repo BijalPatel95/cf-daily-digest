@@ -75,7 +75,7 @@ Resources:
             Resource: '*'
           - Effect: Allow
             Action:
-            - 'ses:SendRawEmail'
+            - 'ses:SendBulkTemplatedEmail'
             Resource: '*'
           - Effect: Allow
             Action:
