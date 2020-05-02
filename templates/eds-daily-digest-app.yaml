@@ -262,20 +262,20 @@ Resources:
                 Resource: 
                   - !GetAtt ExecutorLambda.Arn
 
-    ScheduledRule: 
-      Type: AWS::Events::Rule
-      Properties: 
-        Description: "Lambda Scheduled to Trigger at 4pm"
-        ScheduleExpression: cron(0 20 ? * MON-SAT *)
-        State: "ENABLED"
+  ScheduledRule: 
+    Type: AWS::Events::Rule
+    Properties: 
+      Description: "Lambda Scheduled to Trigger at 4pm"
+      ScheduleExpression: cron(0 20 ? * MON-SAT *)
+      State: "ENABLED"
 
-    PermissionForEventsToInvokeLambda: 
-      Type: AWS::Lambda::Permission
-      Properties: 
-        FunctionName: !Sub ${TriggerLambda.Arn}
-        Action: "lambda:InvokeFunction"
-        Principal: "events.amazonaws.com"
-        SourceArn: !Sub ${ScheduledRule.Arn}
+  PermissionForEventsToInvokeLambda: 
+    Type: AWS::Lambda::Permission
+    Properties: 
+      FunctionName: !Sub ${TriggerLambda.Arn}
+      Action: "lambda:InvokeFunction"
+      Principal: "events.amazonaws.com"
+      SourceArn: !Sub ${ScheduledRule.Arn}
 
 Outputs:
   ExecutorLambda:
